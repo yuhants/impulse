@@ -487,7 +487,7 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi=0.05, debug=False, show_plots=Fals
     plt.close('all')
     if(not debug):
         #plt.savefig(outdir + "/plots/differential_rate_alpha_%.2e_MX_%.2e.pdf"%(alpha_n, M_X/1e9))
-        np.savez(outdir + "/dsdqdv_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdqdv = dsigdq_mat, theta_b_save = np.asarray(theta_b_save), b_um_save = b_um_save)
+        np.savez(outdir + "/dsdqdv_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdqdv = dsigdq_mat, theta_b = np.asarray(theta_b), b_um = b_um)
         np.savez(outdir + "/differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
 
     if(show_plots):
