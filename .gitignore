@@ -14,3 +14,5 @@ __pycache__
 limits/*.npz
 *.SLD*
 *.pptx
+data/mphi_1e-04/*.npz
+yuhan/data/*
