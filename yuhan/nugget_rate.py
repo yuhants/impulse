@@ -7,6 +7,8 @@ import scipy.signal as sig
 from scipy.special import erf
 from scipy.interpolate import CubicSpline
 
+from multiprocessing import Pool
+
 ## General Prameters
 hbarc = 0.2     # eV um
 rho_T = 2.0e3   # Sphere density, kg/m^3
@@ -209,11 +211,11 @@ def dsig_dq(p, pmax, b, theta):
 
     q_lin = np.linspace(0, 2*pmax*1.1, 10000)
     if(len(b1) > 1 ):
-        q1_idx = np.argsort(q1)
+        q1_sorted, q1_idx = np.unique(q1, return_index=True)
         b1_cubic = CubicSpline(q1[q1_idx], b1[q1_idx])(q1[q1_idx])
         db1 = np.abs(np.gradient(b1_cubic, q1[q1_idx]))
         
-    q2_idx = np.argsort(q2)
+    q2_sorted, q2_idx = np.unique(q2, return_index=True)
     b2_cubic = CubicSpline(q2[q2_idx], b2[q2_idx])(q2[q2_idx])
     db2 = np.abs(np.gradient(b2_cubic, q2[q2_idx]))
     
@@ -240,19 +242,29 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     mR = m_phi * R        # (= R/lambda), a useful length scale; now defiend in `vtot()`
 
     ## Start calculation
-    nvels = 10      # Number of velocities to include in integration
+    nvels = 2000      # Number of velocities to include in integration
     vlist = np.linspace(vmin, vesc, nvels)
     pmax = np.max((vesc * M_X, 10e9))
 
-    nb = 2000
-    bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
+    #nb = 2000
+    #bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
     nq = 10000
     qq, ss = np.empty(shape=(vlist.size, nq)), np.empty(shape=(vlist.size, nq))
 
+    params = list(np.vstack((np.full_like(vlist, M_X), np.full_like(vlist, m_phi), np.full_like(vlist, alpha), vlist)).T)
+    pool = Pool(32)
+    b_theta_pooled = pool.starmap(b_theta, params)
+
+    _transposed = list(zip(*b_theta_pooled))
+    bb, tt = _transposed[1], _transposed[2]
+
     for idx, v in enumerate(vlist):
-        print(idx)
-        p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
-        qq[idx], ss[idx] = dsig_dq(p, pmax, bb[idx], tt[idx])
+        #print(idx)
+        #p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
+        p = b_theta_pooled[idx][0]
+        b = b_theta_pooled[idx][1]
+        theta = b_theta_pooled[idx][2]
+        qq[idx], ss[idx] = dsig_dq(p, pmax, b, theta)
 
     int_vec = rhoDM / M_X * vlist * f_halo(vlist)
 
@@ -262,12 +274,13 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
 
     conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600  # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr
 
-    outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\yuhan\data\mphi_%.0e"%m_phi
+    #outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\yuhan\data\mphi_%.0e"%m_phi
+    outdir = "/home/yt388/microspheres/impulse/yuhan/data/mphi_%.0e"%m_phi
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
-    np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=bb, theta = tt, v=vlist)
-    np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
-    np.savez(outdir + "/differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
+    np.savez(outdir + "/pool_b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
+    np.savez(outdir + "/pool_dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
+    np.savez(outdir + "/pool_differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
 
 if __name__ == "__main__":
     M_X_in = float(sys.argv[1])      # DM mass in GeV
