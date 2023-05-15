@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J nugget_rate_test_pool_2000
+#SBATCH -J nugget_rate_test
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
@@ -10,4 +10,4 @@
 
 module load miniconda
 conda activate microsphere
-python nugget_rate.py 5e3 1e-8 1e-4
+python nugget_rate_v2.py 5e3 1e-8 1e-3

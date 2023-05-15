@@ -245,14 +245,14 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     outdir = "/home/yt388/microspheres/impulse/yuhan/data/mphi_%.0e"%m_phi
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
-    np.savez(outdir + "/pool_b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
-    np.savez(outdir + "/pool_dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
-    np.savez(outdir + "/pool_differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
+    np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
+    np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
+    np.savez(outdir + "/differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
 
 if __name__ == "__main__":
-    M_X_in     = float(sys.argv[1])      # DM mass in GeV
+    M_X_in     = float(sys.argv[1])  # DM mass in GeV
     alpha_n_in = float(sys.argv[2])  # Dimensionless coupling
-    m_phi      = float(sys.argv[3])       # Mediator mass in eV
+    m_phi      = float(sys.argv[3])  # Mediator mass in eV
 
     print(M_X_in, alpha_n_in, m_phi)
     run_nugget_calc(M_X_in, alpha_n_in, m_phi)
