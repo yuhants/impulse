@@ -213,12 +213,14 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     vlist = np.linspace(vmin, vesc, nvels)
     pmax = np.max((vesc * M_X, 10e9))
 
+    point_charge = False
     #nb = 2000
     #bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
     nq = 10000
     qq, ss = np.empty(shape=(vlist.size, nq)), np.empty(shape=(vlist.size, nq))
 
-    params = list(np.vstack((np.full_like(vlist, M_X), np.full_like(vlist, m_phi), np.full_like(vlist, alpha), vlist)).T)
+    params = list(np.vstack( (np.full_like(vlist, M_X), np.full_like(vlist, m_phi), np.full_like(vlist, alpha), 
+                             vlist, np.full(nvels, point_charge) )).T)
     pool = Pool(32)
     b_theta_pooled = pool.starmap(b_theta, params)
 
@@ -250,9 +252,9 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     np.savez(outdir + "/pool_differential_rate_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=qq/1e9, dsigdq = tot_xsec*conv_fac)
 
 if __name__ == "__main__":
-    M_X_in     = float(sys.argv[1])      # DM mass in GeV
+    M_X_in     = float(sys.argv[1])  # DM mass in GeV
     alpha_n_in = float(sys.argv[2])  # Dimensionless coupling
-    m_phi      = float(sys.argv[3])       # Mediator mass in eV
+    m_phi      = float(sys.argv[3])  # Mediator mass in eV
 
     print(M_X_in, alpha_n_in, m_phi)
     run_nugget_calc(M_X_in, alpha_n_in, m_phi)
