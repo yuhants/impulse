@@ -2,21 +2,15 @@ import sys, os
 import numpy as np
 
 import matplotlib.pyplot as plt
-from scipy.special import erf
+from scipy.special import erf, spherical_jn
 
 # Parameters
 hbarc = 0.2     # eV um
 rho_T = 2.0e3   # Sphere density, kg/m^3
 mAMU = 1.66e-27 # Neutron mass
 
-# R_um = 5          # Sphere radius, um
-R_um = 0.05         # nanospheres
-
-R = R_um / hbarc  # Radius in natural units, eV^-1
-N_T = 0.5 * ( 4/3 * np.pi * (R_um*1e-6)**3) * rho_T/mAMU # Number of neutrons
-
 # q_thr = 0.15e9    # momentum threshold, eV
-q_thr = 200e3
+q_thr = 100e3
 
 # DM parameters
 rhoDM = 0.3e9        # dark matter mass density, eV/cm^3
@@ -65,69 +59,86 @@ def dsig_domega_born(mx, mphi, alpha, q, point_charge):
         form_factor = 3 * spherical_jn(n=1, z=q*R) / (q * R)
         return point_charge_sol * form_factor**2
     
-def dsig_dq(dsigdomega, mx, alpha, q, vlist, q_thr):
+def dsig_dq(dsigdomega, mx, alpha, q, vlist, R):
 
     ss = np.empty(shape=(vlist.size, q.size))
+    ss_out = np.empty(shape=(vlist.size, q.size))
 
     for i, v in enumerate(vlist):
         p = mx * v
         dsigdq = ( 2 * np.pi * q / (p**2) ) * dsigdomega
 
-        # Cut off contribution below detection threshold
-        dsigdq[q < q_thr] = 0
+        # Cut off contribution below detection
+        # Edit 2023/05/19: now done in later stages of analysis
+        # dsigdq[q < q_thr] = 0
 
-        Ecm = 0.5 * mx * v**2
-        # Events outside of sphere only
-        bmin = 5e-4 / hbarc # 5 um radius
-        qmax = 2 * mx * v / np.sqrt(4 * Ecm**2 * bmin**2 / alpha**2 + 1)
-        dsigdq[q > qmax] = 0
-
-        # Account for vmin at a given q
-        dsigdq[q > 2 * mx * v] = 0
-        
+        # Cut off unphysical large-q scattering
+        dsigdq[q > 2 * p] = 0
         ss[i] = dsigdq
-        
-    return ss
 
-def dR_dq(mx, mphi, alpha, q, vlist, q_thr):
+        # Events outside of sphere only (approximate)
+        # From exact sol of Rutherford scattering
+        # b = (alpha / 2 Ecm) * cot(theta / 2)
+        # q = 2p * sin(theta / 2)
+        Ecm = 0.5 * mx * v**2
+        bmin = R
+        qmax = 2 * p / np.sqrt(4 * Ecm**2 * bmin**2 / alpha**2 + 1)
+        dsigdq[q > qmax] = 0
+        ss_out[i] = dsigdq
+        
+    return ss, ss_out
+
+def dR_dq(mx, mphi, alpha, q, vlist, R):
     # Differential cross section
     dsigdomega = dsig_domega_born(mx, mphi, alpha, q, point_charge=True)
-    dsigdq = dsig_dq(dsigdomega, mx, alpha, q, vlist, q_thr)
+    dsigdq, dsigdq_out = dsig_dq(dsigdomega, mx, alpha, q, vlist, R)
         
     int_vec = rhoDM / mx * vlist * f_halo_dan(vlist)
     
-    drdq = np.empty_like(q)
+    drdq, drdq_out = np.empty_like(q), np.empty_like(q)
     for i in range(q.size):
         drdq[i] = np.trapz( int_vec * dsigdq.T[i], x=vlist )
+        drdq_out[i] = np.trapz( int_vec * dsigdq_out.T[i], x=vlist )
         
     conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600  # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr
     
     # Counts/hour/GeV
-    return drdq * conv_fac
+    return drdq * conv_fac, drdq_out * conv_fac
 
-if __name__ == "__main__":
-    print(f'Sphere radius: {R_um} um. Threshold = {q_thr:.3f} eV')
-    npts = 100
+def calc_event_rate(R_um, mx_gev, alpha_t):
+    R = R_um / hbarc       # Sphere radius, eV^-1
+    N_T = 0.5 * ( 4/3 * np.pi * (R_um*1e-6)**3 ) * rho_T/mAMU # Number of neutrons
 
-    q = np.logspace(5, 10, 1000) # eV
+    mx = mx_gev * 1e9      # DM mass, eV
+    alpha = alpha_t * N_T  # Total coupling
+
+    q = np.logspace(3, 10, 1000) # eV
     nvels = 2000
     vlist = np.linspace(vmin, vesc, nvels)
 
-    # mx_ev = np.logspace(0, 12, npts) * 1e9
-    # alpha_tot = np.logspace(-14, -6, npts) * N_T
-    mx_ev = np.logspace(-4, 10, npts) * 1e9
-    alpha_tot = np.logspace(-12, -4, npts) * N_T
+    drdq, drdq_out = dR_dq(mx, 0, alpha, q, vlist, R)
 
-    event_rate = np.empty( (mx_ev.size, alpha_tot.size) )
+    # GeV; Counts/hour/GeV
+    return q/1e9, drdq, drdq_out
 
-    for i, mx in enumerate(mx_ev):
-        for j, alpha in enumerate(alpha_tot):
-            print(f'Working on ( {mx/1e9:.3f} GeV, {alpha:.3f} )')
-            
-            drdq = dR_dq(mx, 0, alpha, q, vlist, q_thr)
-            event_rate[i][j] = np.trapz(drdq, q/1e9)
-
+if __name__ == "__main__":
+    npts = 10    # Number of pts in parameter space
     outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
-    np.savez(outdir + '\event_rate_200keV_100nm.npz', mx=mx_ev, alpha=alpha_tot, rate=event_rate)
+
+    # R_um = 5    # Sphere radius, um
+    # mx_gev = np.logspace(0, 12, npts) 
+    # alpha_t = np.logspace(-14, -6, npts)
+
+    R_um = 0.075   # nanospheres; 75 nm
+    mx_gev = np.logspace(-4, 10, npts)
+    alpha_t = np.logspace(-12, -4, npts)
+
+    print(f'Sphere radius = {R_um:.3f} um')
+    for i, mx in enumerate(mx_gev):
+        for j, alpha in enumerate(alpha_t):
+            print(f'Working on ( M_x = {mx:.3e} GeV, alpha_t = {alpha:.3e} )')
+            qq, drdq, drdq_out = calc_event_rate(R_um, mx, alpha)
+
+            np.savez(outdir + f'\drdq_nanosphere_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)
