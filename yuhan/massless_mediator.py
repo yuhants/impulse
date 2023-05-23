@@ -112,7 +112,11 @@ def calc_event_rate(R_um, mx_gev, alpha_t):
     mx = mx_gev * 1e9      # DM mass, eV
     alpha = alpha_t * N_T  # Total coupling
 
-    q = np.logspace(3, 10, 1000) # eV
+    if R_um < 1:
+        q = np.logspace(3, 10, 1000) # eV
+    else:
+        q = np.logspace(5, 10, 1000)
+
     nvels = 2000
     vlist = np.linspace(vmin, vesc, nvels)
 
@@ -122,23 +126,30 @@ def calc_event_rate(R_um, mx_gev, alpha_t):
     return q/1e9, drdq, drdq_out
 
 if __name__ == "__main__":
-    npts = 10    # Number of pts in parameter space
-    outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
+    npts = 200    # Number of pts in parameter space
+    # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
+    outdir = r"/home/yt388/microspheres/impulse/data/massless_mediator"
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
 
-    # R_um = 5    # Sphere radius, um
-    # mx_gev = np.logspace(0, 12, npts) 
-    # alpha_t = np.logspace(-14, -6, npts)
+    R_um = 5    # Sphere radius, um
+    mx_gev = np.logspace(0, 12, npts) 
+    alpha_t = np.logspace(-14, -6, npts)
 
-    R_um = 0.075   # nanospheres; 75 nm
-    mx_gev = np.logspace(-4, 10, npts)
-    alpha_t = np.logspace(-12, -4, npts)
+    # R_um = 0.075   # nanospheres; 75 nm
+    # mx_gev = np.logspace(-4, 10, npts)
+    # alpha_t = np.logspace(-12, -4, npts)
+    
+    if R_um < 1:
+        sphere_type = 'nanosphere'
+    else:
+        sphere_type = 'microsphere'
 
     print(f'Sphere radius = {R_um:.3f} um')
+
     for i, mx in enumerate(mx_gev):
         for j, alpha in enumerate(alpha_t):
             print(f'Working on ( M_x = {mx:.3e} GeV, alpha_t = {alpha:.3e} )')
             qq, drdq, drdq_out = calc_event_rate(R_um, mx, alpha)
 
-            np.savez(outdir + f'\drdq_nanosphere_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)
+            np.savez(outdir + f'/drdq_{sphere_type}_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)

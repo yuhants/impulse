@@ -230,6 +230,7 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     for idx, v in enumerate(vlist):
         #print(idx)
         #p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
+        print('Velocity ', v)
         p = b_theta_pooled[idx][0]
         b = b_theta_pooled[idx][1]
         theta = b_theta_pooled[idx][2]
