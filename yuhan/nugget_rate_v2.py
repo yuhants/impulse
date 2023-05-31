@@ -57,7 +57,7 @@ def f_halo_dan(v):
     See Eq. (2) of https://link.aps.org/doi/10.1103/PhysRevD.42.3572
     """
     N0 = np.pi**1.5 * v0**3 * ( erf(vesc/v0) - 2/np.sqrt(np.pi) * (vesc/v0) * np.exp(-(vesc/v0)**2))
-    return 4*np.pi*v**2 * np.exp(-v**2 / v0**2) / N0
+    return 4 * np.pi * v**2 * np.exp(-v**2 / v0**2) / N0
 
 def vtot(u, m_phi, alpha, point_charge=False):
     mR = m_phi * R
@@ -165,6 +165,14 @@ def b_theta(M_X, m_phi, alpha, v, point_charge):
     return p, b, theta
 
 def dsig_dq(p, pmax, b, theta):
+    # Take care of nan in theta from integration
+    not_nan = np.logical_not(np.isnan(theta))
+    b = b[not_nan]
+    theta = theta[not_nan]
+
+    # Most of the time there is a maximum point
+    # in the theta-b plot
+    # Split contribution above and below critical point
     bcidx = np.argmax(theta)
     bcrit = b[bcidx]
 
@@ -199,12 +207,12 @@ def dsig_dq(p, pmax, b, theta):
 
 def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
 
-    M_X = M_X_in * 1e9   # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
-    m_chi = 0.01 * 1e9   # eV
-    N_chi = M_X / m_chi  # Number of dark matter particles in the nugget
+    M_X = M_X_in * 1e9    # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
+    m_chi = 0.01 * 1e9    # eV
+    N_chi = M_X / m_chi   # Number of dark matter particles in the nugget
 
-    rhoDM = 0.3e9        # dark matter mass density, eV/cm^3
-    alpha_n = alpha_n_in # Dimensionless single neutron-nugget coupling
+    rhoDM = 0.3e9         # dark matter mass density, eV/cm^3
+    alpha_n = alpha_n_in  # Dimensionless single neutron-nugget coupling
     alpha = alpha_n * N_T # Coupling of the entire sphere
     mR = m_phi * R        # (= R/lambda), a useful length scale; now defiend in `vtot()`
 
@@ -230,7 +238,7 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
     for idx, v in enumerate(vlist):
         #print(idx)
         #p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
-        print('Velocity ', v)
+        print(f'Idx: {idx}, Velocity: {v}')
         p = b_theta_pooled[idx][0]
         b = b_theta_pooled[idx][1]
         theta = b_theta_pooled[idx][2]
@@ -244,8 +252,8 @@ def run_nugget_calc(M_X_in, alpha_n_in, m_phi):
 
     conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600  # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr
 
-    #outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\yuhan\data\mphi_%.0e"%m_phi
-    outdir = "/home/yt388/microspheres/impulse/yuhan/data/mphi_%.0e"%m_phi
+    #outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
+    outdir = "/home/yt388/microspheres/impulse/data/mphi_%.0e"%m_phi
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
     np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)

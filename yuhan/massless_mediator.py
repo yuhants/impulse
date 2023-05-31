@@ -22,7 +22,7 @@ ve = 8.172e-4    # ve parameter from Zurek group paper
 
 def f_halo(v):
     """
-    DM velocity distribution in the Earth frame
+    DM velocity distribution in the Earth frame from Zurek group paper
     
     :param v: input velocity (array-like)
     :return: velocity distribtuion (array-like)
@@ -52,6 +52,17 @@ def f_halo_dan(v):
     return 4 * np.pi * v**2 * np.exp(-v**2 / v0**2) / N0
 
 def dsig_domega_born(mx, mphi, alpha, q, point_charge):
+    """
+    Differential cross section given by Born approximation
+
+    :param mx : DM mass in natural units
+    :param phi: mediator mass
+    :param q  : momentum transfer (array_like)
+    :param point_charge: if True give point charge solution
+                         if False include a uniform sphere form factor
+
+    :return: dsigma/domega in natural units (array_like)
+    """
     point_charge_sol = (4 * (mx**2) * (alpha**2) ) / ( (mphi**2 + q**2)**2 )
     if point_charge:
         return point_charge_sol
