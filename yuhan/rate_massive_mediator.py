@@ -275,14 +275,14 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     else:
         pmax = np.max((vesc*M_X, 10e6))
 
+    nq     = 20000
+    q_lin  = np.linspace(100, 2*pmax*1.1, nq)
+    dsdq   = np.empty(shape=(nvels, nq))
+
     ## If not using pool
     #nb = 2000
     #bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
     
-    nq     = 20000
-    q_lin  = np.linspace(0, 2*pmax*1.1, nq)
-    dsdq   = np.empty(shape=(nvels, nq))
-
     params = list(np.vstack( (np.full(nvels, M_X), np.full(nvels, m_phi), np.full(nvels, R),
                               np.full(nvels, alpha), vlist, np.full(nvels, point_charge) )).T)
     pool   = Pool(32)  # This is the number of CPU we want to allocate for each task

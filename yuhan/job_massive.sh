@@ -10,4 +10,4 @@
 
 module load miniconda
 conda activate microsphere
-python rate_massive_mediator.py 0.075 0.5 1e-8 1e-3
+python rate_massive_mediator.py 0.075 0.5 1e-8 1e-4
