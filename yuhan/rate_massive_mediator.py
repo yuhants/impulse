@@ -12,22 +12,22 @@ from multiprocessing import Pool
 ## General Prameters
 hbarc = 0.2      # eV um
 rho_T = 2.0e3    # Sphere density, kg/m^3
-mAMU = 1.66e-27  # Neutron mass
+mAMU  = 1.66e-27 # Neutron mass, kg
 
-res = 170e6      # detector resolution in eV
+res   = 170e6    # detector resolution in eV
 q_thr = 0.05e9   # momentum threshold, eV
 
 ## DM parameters
 rhoDM = 0.3e9    # dark matter mass density, eV/cm^3
-vmin = 5e-5      # minimum velocity to consider, natural units (c)
-vesc = 1.815e-3  # galactic escape velocity
-v0 = 7.34e-4     # v0 parameter from Zurek group paper
-ve = 8.172e-4    # ve parameter from Zurek group paper
+vmin  = 5e-5     # minimum velocity to consider, natural units (c)
+vesc  = 1.815e-3 # galactic escape velocity
+v0    = 7.34e-4  # v0 parameter from Zurek group paper
+ve    = 8.172e-4 # ve parameter from Zurek group paper
 
 ## Functions
 def f_halo(v):
     """
-    DM velocity distribution in the Earth frame
+    DM velocity distribution in the Earth frame from Zurek group paper
     
     :param v: input velocity (array-like)
     :return: velocity distribtuion (array-like)
@@ -162,7 +162,8 @@ def b_theta(M_X, m_phi, R, alpha, v, point_charge):
     
     return p, b, theta
 
-def dsig_dq(p, pmax, b, theta):
+# TODO: incorrect for nanospheres
+def dsig_dq(p, pmax, b, theta, nq):
     # Take care of nan in theta from numerical integration
     not_nan = np.logical_not(np.isnan(theta))
     b = b[not_nan]
@@ -173,17 +174,18 @@ def dsig_dq(p, pmax, b, theta):
     # Split contribution above and below critical point
     bcidx = np.argmax(theta)
     bcrit = b[bcidx]
-
+    peak = False if bcidx == 0 else True
+    
     ## now need the cross section above and below bcrit
     b1, t1 = b[:bcidx], theta[:bcidx]
     b2, t2 = b[bcidx:], theta[bcidx:]
 
     q1 = p * np.sqrt( 2*(1-np.cos(t1)) )
     q2 = p * np.sqrt( 2*(1-np.cos(t2)) )
-    q = p * np.sqrt( 2*(1-np.cos(theta)) )
+    q  = p * np.sqrt( 2*(1-np.cos(theta)) )
 
     # Interpolate and calculate dsig/dq
-    q_lin = np.linspace(0, 2*pmax*1.1, 10000)
+    q_lin = np.linspace(0, 2*pmax*1.1, nq)
     if(len(b1) > 1 ):
         q1_sorted, q1_idx = np.unique(q1, return_index=True)
         b1_cubic = CubicSpline(q1[q1_idx], b1[q1_idx])(q1[q1_idx])
@@ -244,7 +246,16 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     point_charge = False
     nvels = 2000      # Number of velocities to include in integration
     vlist = np.linspace(vmin, vesc, nvels)
-    pmax = np.max((vesc * M_X, 10e9))  # Maximum momentum transfer to consider
+    
+    # TODO: adjust for nanospheres
+    # Maximum momentum in the scattering
+    # This would affect how we interpolate and calculate cross section
+    # Make sure we are accurate down to ~ MeV for microspheres
+    # and ~ keV for nanospheres
+    if sphere_type == 'microsphere':
+        pmax = np.max((vesc*M_X, 10e9))
+    else:
+        pmax = np.max((vesc*M_X, 10e6))
 
     # If not using pool
     #nb = 2000
@@ -255,8 +266,8 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     nq = 10000
     qq, ss = np.empty(shape=(vlist.size, nq)), np.empty(shape=(vlist.size, nq))
 
-    params = list(np.vstack( (np.full_like(vlist, M_X), np.full_like(vlist, m_phi), np.full_like(vlist, R),
-                              np.full_like(vlist, alpha), vlist, np.full(nvels, point_charge) )).T)
+    params = list(np.vstack( (np.full(nvels, M_X), np.full(nvels, m_phi), np.full(nvels, R),
+                              np.full(nvels, alpha), vlist, np.full(nvels, point_charge) )).T)
     pool = Pool(32)  # This is the number of CPU we want to allocate for each task
                      # i.e. #SBATCH --cpus-per-task=32
     b_theta_pooled = pool.starmap(b_theta, params)
@@ -270,18 +281,19 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
         
         # Use multiprocessing to accelerate calculation
         print(f'Idx: {idx}, Velocity: {v}')
-        p = b_theta_pooled[idx][0]
-        b = b_theta_pooled[idx][1]
+        p     = b_theta_pooled[idx][0]
+        b     = b_theta_pooled[idx][1]
         theta = b_theta_pooled[idx][2]
-        qq[idx], ss[idx] = dsig_dq(p, pmax, b, theta)
+        qq[idx], ss[idx] = dsig_dq(p, pmax, b, theta, nq)
 
     drdq = dR_dq(M_X, qq[0], ss, vlist)
 
-    #outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
+    # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
     outdir = f'/home/yt388/microspheres/impulse/data/mphi_{m_phi:.0e}'
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
-        
+    
+    # For debugging purposes    
     # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(:qbb), theta=np.asarray(tt) , v=vlist)
     # np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
     
