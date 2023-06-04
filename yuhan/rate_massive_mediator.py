@@ -147,23 +147,38 @@ def b_theta(M_X, m_phi, R, alpha, v, point_charge):
     # Make a list of impact parameters
     # Impact factor `b` (eV^-1)
     # Might need to adjust the range for different calculations
+    nb = 2000
     if(m_phi > 0):
-        b_um = np.logspace(-5, 5, 2000)
+        b_um = np.logspace(-5, 5, nb)
     else:
-        b_um = np.logspace(-5, 5, 2000)
+        b_um = np.logspace(-5, 5, nb)
     b = b_um / hbarc
     
-    umax = max_u_numerical(E, b, m_phi, R, alpha, point_charge)
-    Psi = np.empty_like(b)
+    umax     = max_u_numerical(E, b, m_phi, R, alpha, point_charge)
+    integral = np.empty_like(b)
     for i, _b in enumerate(b):
-        Psi[i] = quad(integrand, 0, 1, args=(umax[i], E, _b, m_phi, R, alpha, point_charge))[0]
+        integral[i] = quad(integrand, 0, 1, args=(umax[i], E, _b, m_phi, R, alpha, point_charge))[0]
         
-    theta = np.pi - 4 * b * Psi
+    theta = np.pi - 4 * b * integral
     
     return p, b, theta
 
-# TODO: incorrect for nanospheres
-def dsig_dq(p, pmax, b, theta, nq):
+def db_dq(q, b):
+    """Calculate db/dq from unsorted q and b"""
+    lnb = np.log(b)
+    q_sorted, q_idx = np.unique(q, return_index=True)
+    lnb_sorted, b_sorted = lnb[q_idx], b[q_idx]
+
+    # CubicSpline interpolation makes sure the derivative exists
+    # Do interpolation in log space and use
+    # derivatives given by `scipy.interpolate.CubicSpline()`
+    # db/dq = b * dlogb / dq
+    lnb_cubic = CubicSpline(q_sorted, lnb_sorted)
+    dbdq = b_sorted * lnb_cubic.derivative()( q_sorted )
+    
+    return q_sorted, b_sorted, dbdq
+
+def dsig_dq(p, pmax, b, theta, q_lin):
     # Take care of nan in theta from numerical integration
     not_nan = np.logical_not(np.isnan(theta))
     b = b[not_nan]
@@ -172,9 +187,9 @@ def dsig_dq(p, pmax, b, theta, nq):
     # Most of the time there is a maximum point
     # in the theta-b plot
     # Split contribution above and below critical point
+    # This avoids overestimating deriv around the peak
     bcidx = np.argmax(theta)
     bcrit = b[bcidx]
-    peak = False if bcidx == 0 else True
     
     ## now need the cross section above and below bcrit
     b1, t1 = b[:bcidx], theta[:bcidx]
@@ -185,28 +200,31 @@ def dsig_dq(p, pmax, b, theta, nq):
     q  = p * np.sqrt( 2*(1-np.cos(theta)) )
 
     # Interpolate and calculate dsig/dq
-    q_lin = np.linspace(0, 2*pmax*1.1, nq)
     if(len(b1) > 1 ):
-        q1_sorted, q1_idx = np.unique(q1, return_index=True)
-        b1_cubic = CubicSpline(q1[q1_idx], b1[q1_idx])(q1[q1_idx])
-        db1 = np.abs(np.gradient(b1_cubic, q1[q1_idx]))
-        
-    q2_sorted, q2_idx = np.unique(q2, return_index=True)
-    b2_cubic = CubicSpline(q2[q2_idx], b2[q2_idx])(q2[q2_idx])
-    db2 = np.abs(np.gradient(b2_cubic, q2[q2_idx]))
+        q1_sorted, b1_sorted, db1 = np.abs( db_dq(q1, b1) )
+        # Edit 20230604: linear interp below not used anymore
+        # q1_sorted, q1_idx = np.unique(q1, return_index=True)
+        # b1_cubic = CubicSpline(q1[q1_idx], b1[q1_idx])(q1[q1_idx])
+        # db1 = np.abs(np.gradient(b1_cubic, q1[q1_idx]))
     
+    q2_sorted, b2_sorted, db2 = np.abs( db_dq(q2, b2) )  
+    # q2_sorted, q2_idx = np.unique(q2, return_index=True)
+    # b2_cubic = CubicSpline(q2[q2_idx], b2[q2_idx])(q2[q2_idx])
+    # db2 = np.abs(np.gradient(b2_cubic, q2[q2_idx]))
+   
+    # Linearly interpolate dsigdq and add two parts together 
     if (len(b1) > 1 ):
-        dsigdq1 = np.interp(q_lin, q1[q1_idx], 2 * np.pi * b1[q1_idx] * db1, right=0)
+        dsigdq1 = np.interp(q_lin, q1_sorted, 2 * np.pi * b1_sorted * db1, right=0)
     else:
         dsigdq1 = np.zeros_like(q_lin)
-    dsigdq2 = np.interp(q_lin, q2[q2_idx], 2 * np.pi * b2[q2_idx] * db2, right=0)
+    dsigdq2 = np.interp(q_lin, q2_sorted, 2 * np.pi * b2_sorted * db2, right=0)
 
     dsigdq_tot = dsigdq1 + dsigdq2
     
     # Edited 20230602: now done in later stages of analysis
     # dsigdq_tot[q_lin < q_thr] = 0  # Cut off at the momentum threshold
     
-    return q_lin, dsigdq_tot
+    return dsigdq_tot
 
 def dR_dq(mx, q, dsdq, vlist):
     # Integrate over DM velocities to get dR/dq
@@ -215,11 +233,12 @@ def dR_dq(mx, q, dsdq, vlist):
     drdq = np.zeros_like(q)
     for i in range(q.size):
         drdq[i] = np.trapz( int_vec * dsdq.T[i], x=vlist )
-        
-    conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600  # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr
     
-    # Counts/hour/GeV
-    return drdq * conv_fac
+    # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr    
+    conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600
+    
+    # GeV; Counts/hour/GeV
+    return q/1e9, drdq * conv_fac
 
 def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     if R_um < 1:
@@ -235,7 +254,7 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     mR = m_phi * R        # (= R/lambda), a useful length scale; now defined in `vtot()`
 
     # `m_phi` is already in eV
-    M_X = M_X_in * 1e9    # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
+    M_X   = M_X_in * 1e9  # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
     m_chi = 0.01 * 1e9    # eV
     N_chi = M_X / m_chi   # Number of dark matter particles in the nugget
 
@@ -247,7 +266,6 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     nvels = 2000      # Number of velocities to include in integration
     vlist = np.linspace(vmin, vesc, nvels)
     
-    # TODO: adjust for nanospheres
     # Maximum momentum in the scattering
     # This would affect how we interpolate and calculate cross section
     # Make sure we are accurate down to ~ MeV for microspheres
@@ -257,36 +275,36 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     else:
         pmax = np.max((vesc*M_X, 10e6))
 
-    # If not using pool
+    ## If not using pool
     #nb = 2000
     #bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
     
-    # TODO
-    # `nq` is currently hard coded by should match the number of `q_lin` in `dsig_dq()`
-    nq = 10000
-    qq, ss = np.empty(shape=(vlist.size, nq)), np.empty(shape=(vlist.size, nq))
+    nq     = 20000
+    q_lin  = np.linspace(0, 2*pmax*1.1, nq)
+    dsdq   = np.empty(shape=(nvels, nq))
 
     params = list(np.vstack( (np.full(nvels, M_X), np.full(nvels, m_phi), np.full(nvels, R),
                               np.full(nvels, alpha), vlist, np.full(nvels, point_charge) )).T)
-    pool = Pool(32)  # This is the number of CPU we want to allocate for each task
-                     # i.e. #SBATCH --cpus-per-task=32
+    pool   = Pool(32)  # This is the number of CPU we want to allocate for each task
+                       # i.e. #SBATCH --cpus-per-task=32
     b_theta_pooled = pool.starmap(b_theta, params)
 
-    _transposed = list(zip(*b_theta_pooled))
-    bb, tt = _transposed[1], _transposed[2]
+    ## For debugging purposes
+    # _transposed = list(zip(*b_theta_pooled))
+    # bb, tt = _transposed[1], _transposed[2]
 
     for idx, v in enumerate(vlist):
-        # If not using pool
+        ## If not using pool
         #p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
         
         # Use multiprocessing to accelerate calculation
         print(f'Idx: {idx}, Velocity: {v}')
-        p     = b_theta_pooled[idx][0]
-        b     = b_theta_pooled[idx][1]
-        theta = b_theta_pooled[idx][2]
-        qq[idx], ss[idx] = dsig_dq(p, pmax, b, theta, nq)
+        p         = b_theta_pooled[idx][0]
+        b         = b_theta_pooled[idx][1]
+        theta     = b_theta_pooled[idx][2]
+        dsdq[idx] = dsig_dq(p, pmax, b, theta, q_lin)
 
-    drdq = dR_dq(M_X, qq[0], ss, vlist)
+    q_gev, drdq = dR_dq(M_X, q_lin, dsdq, vlist)
 
     # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
     outdir = f'/home/yt388/microspheres/impulse/data/mphi_{m_phi:.0e}'
@@ -294,11 +312,11 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
         os.mkdir(outdir)
     
     # For debugging purposes    
-    # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(:qbb), theta=np.asarray(tt) , v=vlist)
-    # np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), qq=qq/1e9, dsdqdv = ss, v=vlist)
+    # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
+    # np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=q_lin, dsdqdv=dsdq, v=vlist)
     
     # GeV; Counts/hour/GeV
-    np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X, alpha_t=alpha_n, q=qq[0]/1e9, drdq=drdq)
+    np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X, alpha_t=alpha_n, q=q_gev, drdq=drdq)
 
 if __name__ == "__main__":
     R_um       = float(sys.argv[1])  # Sphere radius in um
