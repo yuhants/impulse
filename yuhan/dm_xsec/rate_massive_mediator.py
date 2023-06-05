@@ -260,12 +260,12 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     else:
         sphere_type = 'microsphere'
 
-    R = R_um / hbarc  # Radius in natural units, eV^-1
+    R   = R_um / hbarc  # Radius in natural units, eV^-1
     N_T = 0.5 * ( 4/3 * np.pi * (R_um*1e-6)**3) * rho_T/mAMU # Number of neutrons
     
-    alpha_n = alpha_n_in  # Dimensionless single neutron-nugget coupling
-    alpha = alpha_n * N_T # Total coupling
-    mR = m_phi * R        # (= R/lambda), a useful length scale; now defined in `vtot()`
+    alpha_n = alpha_n_in      # Dimensionless single neutron-nugget coupling
+    alpha   = alpha_n * N_T   # Total coupling
+    mR      = m_phi * R       # (= R/lambda), a useful length scale; now defined in `vtot()`
 
     # `m_phi` is already in eV
     M_X   = M_X_in * 1e9  # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
@@ -332,7 +332,7 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     # np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=q_lin, dsdqdv=dsdq, v=vlist)
     
     # GeV; Counts/hour/GeV
-    np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X, alpha_t=alpha_n, q=q_gev, drdq=drdq)
+    np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
 
 if __name__ == "__main__":
     R_um       = float(sys.argv[1])  # Sphere radius in um

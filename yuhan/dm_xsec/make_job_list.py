@@ -4,9 +4,9 @@ import numpy as np
 R_um       = 0.075 
 mx_list    = np.logspace(-4, 10, 40)
 alpha_list = np.logspace(-12, -4, 40)
-mphi_list  = [0,] #[1e-2,]
+mphi_list  = [1e-4,] #[1e-2,]
 
-job_file = open("job_list_massless.txt", "wt")
+job_file = open("job_list_1e-4.txt", "wt")
 
 for mx in mx_list:
     for alpha in alpha_list:
