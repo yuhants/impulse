@@ -50,7 +50,8 @@ def f_halo(v):
 
 def f_halo_dan(v):
     """
-    I think this is the standard halo model but need to double check.
+    I think this is the standard halo model in the Galaxy frame 
+    i.e. not in the Earth frame, but need to double check.
     See Eq. (2) of https://link.aps.org/doi/10.1103/PhysRevD.42.3572
     """
     N0 = np.pi**1.5 * v0**3 * ( erf(vesc/v0) - 2/np.sqrt(np.pi) * (vesc/v0) * np.exp(-(vesc/v0)**2))
@@ -87,6 +88,7 @@ def vtot(u, m_phi, R, alpha, point_charge=False):
     return ret
 
 def max_u_func(u, E, b, m_phi, R, alpha, point_charge):
+    # Will return `- np.inf` if there are zeroes
     return np.log(np.abs(1 - (b*u)**2 - vtot(u, m_phi, R, alpha, point_charge) / E))
 
 def max_u_numerical(E, b, m_phi, R, alpha, point_charge):    
@@ -109,6 +111,8 @@ def max_u_numerical(E, b, m_phi, R, alpha, point_charge):
         
         while (not converge):
             ff = max_u_func(uu, E, bb, m_phi, R, alpha, point_charge)
+
+            # `np.argmin()` return the first encountered minimum if there are multiple
             min_arg = np.argmin(ff)
             if ( ff[min_arg] < -15 ): # Func value smaller than exp(-15)
                 converge = True
@@ -135,10 +139,17 @@ def integrand(rho, umax, E, b, m_phi, R, alpha, point_charge):
     rmin = 1 / umax
     
     r = rmin / (1 - rho * rho)
-    first_term = (rmin*rmin / (rho*rho*E)) * (vtot(umax, m_phi, R, alpha, point_charge) - vtot(1/r, m_phi, R, alpha, point_charge))
+    first_term  = (rmin*rmin / (rho*rho*E)) * (vtot(umax, m_phi, R, alpha, point_charge) - vtot(1/r, m_phi, R, alpha, point_charge))
     second_term = b * b * (2 - rho*rho)
-    
-    return 1 / np.sqrt(first_term + second_term)
+
+    ## TODO
+    # I think there could be numerical errors that makes the term in the sqrt goes to negative
+    # when it's actucally very close to zero    
+    both = first_term + second_term
+    if both < 0 or both == 0:
+        return 0
+    else: 
+        return 1 / np.sqrt(both)
 
 def b_theta(M_X, m_phi, R, alpha, v, point_charge):
     p = M_X * v            # DM initial momentum (eV)
@@ -242,7 +253,7 @@ def dsig_dq(p, pmax, b, theta, q_lin):
 
 def dR_dq(mx, q, dsdq, vlist):
     # Integrate over DM velocities to get dR/dq
-    int_vec = rhoDM / mx * vlist * f_halo_dan(vlist)
+    int_vec = rhoDM / mx * vlist * f_halo(vlist)
 
     drdq = np.zeros_like(q)
     for i in range(q.size):
@@ -281,7 +292,7 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     vlist = np.linspace(vmin, vesc, nvels)
     
     # Maximum momentum in the scattering
-    # This would affect how we interpolate and calculate cross section
+    # This would affect how we sample and interpolate cross section
     ## TODO
     # Make sure to over sample `q` enough so accurate down to 
     # ~ MeV for microspheres and ~ keV for nanospheres
@@ -301,6 +312,7 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     
     params = list(np.vstack( (np.full(nvels, M_X), np.full(nvels, m_phi), np.full(nvels, R),
                               np.full(nvels, alpha), vlist, np.full(nvels, point_charge) )).T)
+    # pool   = Pool(1) 
     pool   = Pool(32)  # This is the number of CPU we want to allocate for each task
                        # i.e. #SBATCH --cpus-per-task=32
     b_theta_pooled = pool.starmap(b_theta, params)
@@ -323,14 +335,15 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     q_gev, drdq = dR_dq(M_X, q_lin, dsdq, vlist)
 
     # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
-    outdir = f'/home/yt388/microspheres/impulse/data/mphi_{m_phi:.0e}'
+    outdir = f'/home/yt388/palmer_scratch/data/mphi_{m_phi:.0e}'
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
     
     # For debugging purposes    
     # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
-    # np.savez(outdir + "/dsdqdv_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), q=q_lin, dsdqdv=dsdq, v=vlist)
-    
+   
+    # eV; dsigdqdv 
+    np.savez(outdir + f'/dsdqdv_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_lin, dsdqdv=dsdq, v=vlist) 
     # GeV; Counts/hour/GeV
     np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
 

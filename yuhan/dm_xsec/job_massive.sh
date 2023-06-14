@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J nanosphere_rate_test
+#SBATCH -J nanosphere_massive_test
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
@@ -10,4 +10,4 @@
 
 module load miniconda
 conda activate microsphere
-python rate_massive_mediator.py 0.075 0.5 1e-8 1e-4
+python rate_massive_mediator.py 0.075 2.424e+01 1.425e-06 1e-1

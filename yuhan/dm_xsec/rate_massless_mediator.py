@@ -104,7 +104,7 @@ def dR_dq(mx, mphi, alpha, q, vlist, R):
     dsigdomega = dsig_domega_born(mx, mphi, alpha, q, point_charge=True)
     dsigdq, dsigdq_out = dsig_dq(dsigdomega, mx, alpha, q, vlist, R)
         
-    int_vec = rhoDM / mx * vlist * f_halo_dan(vlist)
+    int_vec = rhoDM / mx * vlist * f_halo(vlist)
     
     drdq, drdq_out = np.empty_like(q), np.empty_like(q)
     for i in range(q.size):
@@ -139,17 +139,17 @@ def calc_event_rate(R_um, mx_gev, alpha_t):
 if __name__ == "__main__":
     npts = 200    # Number of pts in parameter space
     # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
-    outdir = r"/home/yt388/microspheres/impulse/data/massless_mediator"
+    outdir = r"/home/yt388/palmer_scratch/data/massless_mediator"
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
 
-    R_um = 5    # Sphere radius, um
-    mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
-    alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
+    # R_um = 5    # Sphere radius, um
+    # mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
+    # alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
 
-    # R_um = 0.075   # nanospheres; 75 nm
-    # mx_gev = np.logspace(-4, 10, npts)
-    # alpha_t = np.logspace(-12, -4, npts)
+    R_um = 0.075   # nanospheres; 75 nm
+    mx_gev = np.logspace(-4, 10, npts)
+    alpha_t = np.logspace(-12, -4, npts)
     
     if R_um < 1:
         sphere_type = 'nanosphere'
