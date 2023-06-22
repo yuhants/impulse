@@ -143,13 +143,13 @@ if __name__ == "__main__":
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
 
-    # R_um = 5    # Sphere radius, um
-    # mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
-    # alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
+    R_um = 5    # Sphere radius, um
+    mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
+    alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
 
-    R_um = 0.075   # nanospheres; 75 nm
-    mx_gev = np.logspace(-4, 10, npts)
-    alpha_t = np.logspace(-12, -4, npts)
+    # R_um = 0.075   # nanospheres; 75 nm
+    # mx_gev = np.logspace(-4, 10, npts)
+    # alpha_t = np.logspace(-12, -4, npts)
     
     if R_um < 1:
         sphere_type = 'nanosphere'

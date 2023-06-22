@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J massless_nanosphere
+#SBATCH -J massless_microsphere
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
