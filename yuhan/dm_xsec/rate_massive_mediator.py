@@ -246,7 +246,7 @@ def dsig_dq(p, pmax, b, theta, q_lin):
 
     dsigdq_tot = dsigdq1 + dsigdq2
     
-    # Edited 20230602: now done in later stages of analysis
+    # Edited 20230602: now set momentum cutoff in later stages of analysis
     # dsigdq_tot[q_lin < q_thr] = 0  # Cut off at the momentum threshold
     
     return dsigdq_tot
@@ -339,11 +339,11 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
     
-    # For debugging purposes    
+    ## For debugging purposes    
     # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
    
-    # eV; dsigdqdv 
-    np.savez(outdir + f'/dsdqdv_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_lin, dsdqdv=dsdq, v=vlist) 
+    ## eV; dsigdqdv 
+    # np.savez(outdir + f'/dsdqdv_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_lin, dsdqdv=dsdq, v=vlist) 
     # GeV; Counts/hour/GeV
     np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
 

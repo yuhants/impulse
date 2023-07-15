@@ -9,9 +9,6 @@ hbarc = 0.2     # eV um
 rho_T = 2.0e3   # Sphere density, kg/m^3
 mAMU = 1.66e-27 # Neutron mass
 
-# q_thr = 0.15e9    # momentum threshold, eV
-q_thr = 100e3
-
 # DM parameters
 rhoDM = 0.3e9        # dark matter mass density, eV/cm^3
 
@@ -137,21 +134,29 @@ def calc_event_rate(R_um, mx_gev, alpha_t):
     return q/1e9, drdq, drdq_out
 
 if __name__ == "__main__":
-    npts = 200    # Number of pts in parameter space
+    npts = 20    # Number of pts in parameter space
     # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
     outdir = r"/home/yt388/palmer_scratch/data/massless_mediator"
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
 
-    R_um = 5    # Sphere radius, um
-    mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
-    alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
+    # R_um = 7.5    # Sphere radius, um
+    # mx_gev = np.logspace(0, 12, npts)    # DM mass in GeV
+    # alpha_t = np.logspace(-14, -6, npts) # Single neutron coupling
+
+    # R_um = 0.75
+    # mx_gev = np.logspace(-2, 11, npts)
+    # alpha_t = np.logspace(-14, -6, npts)
 
     # R_um = 0.075   # nanospheres; 75 nm
     # mx_gev = np.logspace(-4, 10, npts)
     # alpha_t = np.logspace(-12, -4, npts)
+
+    R_um = 0.0075   # nanospheres; 75 nm
+    mx_gev = np.logspace(-6, 8, npts)
+    alpha_t = np.logspace(-12, -4, npts)
     
-    if R_um < 1:
+    if R_um < 0.5:
         sphere_type = 'nanosphere'
     else:
         sphere_type = 'microsphere'
@@ -163,4 +168,4 @@ if __name__ == "__main__":
             print(f'Working on ( M_x = {mx:.3e} GeV, alpha_t = {alpha:.3e} )')
             qq, drdq, drdq_out = calc_event_rate(R_um, mx, alpha)
 
-            np.savez(outdir + f'/drdq_{sphere_type}_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)
+            np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)
