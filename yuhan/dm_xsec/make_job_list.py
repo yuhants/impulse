@@ -1,19 +1,19 @@
 import os
 import numpy as np
 
-R_um       = 0.075 
-mx_list    = np.logspace(-4, 10, 40)
-alpha_list = np.logspace(-12, -4, 40)
-mphi_list  = [1e0]
+R_um       = 0.0075 
+mx_list    = np.logspace(-6, 1, 40)
+alpha_list = np.logspace(-10, -4, 40)
+mphi_list  = [1000, 100, 10]
 
-job_file = open("job_list_10.txt", "wt")
+job_file = open("job_list_15nm.txt", "wt")
 
 for mx in mx_list:
     for alpha in alpha_list:
         for mphi in mphi_list:
 
             outdir = f'/home/yt388/palmer_scratch/data/mphi_{mphi:.0e}'
-            outfile = outdir + f'/drdq_nanosphere_{mx:.5e}_{alpha:.5e}_{mphi:.0e}.npz'
+            outfile = outdir + f'/drdq_nanosphere_{R_um:.2e}_{mx:.5e}_{alpha:.5e}_{mphi:.0e}.npz'
             if( os.path.isfile(outfile) ):
                  print("Skipping: ", outfile)
                  continue

@@ -280,8 +280,6 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
 
     # `m_phi` is already in eV
     M_X   = M_X_in * 1e9  # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
-    m_chi = 0.01 * 1e9    # eV
-    N_chi = M_X / m_chi   # Number of dark matter particles in the nugget
 
     ## Start calculation
     # With fixed `M_X`, `alpha`, `m_phi` 
@@ -292,18 +290,17 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     vlist = np.linspace(vmin, vesc, nvels)
     
     # Maximum momentum in the scattering
+    # TODO: need more testing
     # This would affect how we sample and interpolate cross section
-    ## TODO
     # Make sure to over sample `q` enough so accurate down to 
     # ~ MeV for microspheres and ~ keV for nanospheres
     # In small angle scattering q ~ 2 alpha / (b v)
-    if sphere_type == 'microsphere':
-        pmax = np.max([np.min([vesc*M_X, 10*alpha/(R*vmin)]), 10e9])
-    else:
-        pmax = np.max([np.min([vesc*M_X, 10*alpha/(R*vmin)]), 10e6])
+    pmax = np.min([10 * vesc * M_X, 10 * alpha / (R * vmin)])
 
     nq     = 20000
-    q_lin  = np.linspace(100, 2*pmax*1.1, nq)
+    # Modified 20230723 to accomodate low momentum threshold cases
+    # TODO: test
+    q_lin  = np.linspace(1, 2*pmax*1.1, nq)
     dsdq   = np.empty(shape=(nvels, nq))
 
     ## If not using pool
@@ -340,12 +337,12 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
         os.mkdir(outdir)
     
     ## For debugging purposes    
-    # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)
-   
+    # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)   
     ## eV; dsigdqdv 
     # np.savez(outdir + f'/dsdqdv_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_lin, dsdqdv=dsdq, v=vlist) 
+
     # GeV; Counts/hour/GeV
-    np.savez(outdir + f'/drdq_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
+    np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
 
 if __name__ == "__main__":
     R_um       = float(sys.argv[1])  # Sphere radius in um
@@ -353,7 +350,7 @@ if __name__ == "__main__":
     alpha_n_in = float(sys.argv[3])  # Single neutron coupling
     m_phi      = float(sys.argv[4])  # Mediator mass in eV
     
-    print(f'Sphere radius = {R_um:.3f} um')
+    print(f'Sphere radius = {R_um:.4f} um')
     print(f'Working on M_X = {M_X_in:.3e} GeV, alpha_t = {alpha_n_in:.3e}, m_phi = {m_phi:.0e} eV')
     
     run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi)

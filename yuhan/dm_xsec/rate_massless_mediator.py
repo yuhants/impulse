@@ -81,6 +81,8 @@ def dsig_dq(dsigdomega, mx, alpha, q, vlist, R):
         # dsigdq[q < q_thr] = 0
 
         # Cut off unphysical large-q scattering
+        # This is necessary for get a realistic estimate
+        # because Coulomb scattering xsec diverges
         dsigdq[q > 2 * p] = 0
         ss[i] = dsigdq
 
@@ -135,6 +137,7 @@ def calc_event_rate(R_um, mx_gev, alpha_t):
 
 if __name__ == "__main__":
     npts = 20    # Number of pts in parameter space
+
     # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\massless_mediator"
     outdir = r"/home/yt388/palmer_scratch/data/massless_mediator"
     if(not os.path.isdir(outdir)):
@@ -152,9 +155,9 @@ if __name__ == "__main__":
     # mx_gev = np.logspace(-4, 10, npts)
     # alpha_t = np.logspace(-12, -4, npts)
 
-    R_um = 0.0075   # nanospheres; 75 nm
-    mx_gev = np.logspace(-6, 8, npts)
-    alpha_t = np.logspace(-12, -4, npts)
+    R_um = 0.0075   # nanospheres; 7.5 nm
+    mx_gev = np.logspace(-6, 1, npts)
+    alpha_t = np.logspace(-10, -4, npts)
     
     if R_um < 0.5:
         sphere_type = 'nanosphere'
@@ -167,5 +170,4 @@ if __name__ == "__main__":
         for j, alpha in enumerate(alpha_t):
             print(f'Working on ( M_x = {mx:.3e} GeV, alpha_t = {alpha:.3e} )')
             qq, drdq, drdq_out = calc_event_rate(R_um, mx, alpha)
-
             np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq, drdq_out=drdq_out)
