@@ -48,7 +48,7 @@ def f_halo_dan(v):
     N0 = np.pi**1.5 * v0**3 * ( erf(vesc/v0) - 2/np.sqrt(np.pi) * (vesc/v0) * np.exp(-(vesc/v0)**2))
     return 4 * np.pi * v**2 * np.exp(-v**2 / v0**2) / N0
 
-def dsig_domega_born(mx, mphi, alpha, q, point_charge):
+def dsig_domega_born(mx, mphi, alpha, q, R=None, point_charge=True):
     """
     Differential cross section given by Born approximation
 
@@ -100,7 +100,7 @@ def dsig_dq(dsigdomega, mx, alpha, q, vlist, R):
 
 def dR_dq(mx, mphi, alpha, q, vlist, R):
     # Differential cross section
-    dsigdomega = dsig_domega_born(mx, mphi, alpha, q, point_charge=True)
+    dsigdomega = dsig_domega_born(mx, mphi, alpha, q, R=None, point_charge=True)
     dsigdq, dsigdq_out = dsig_dq(dsigdomega, mx, alpha, q, vlist, R)
         
     int_vec = rhoDM / mx * vlist * f_halo(vlist)
