@@ -1,4 +1,3 @@
-
 import sys, os
 import numpy as np
 
@@ -12,8 +11,9 @@ def dR_dq_born(mx, mphi, alpha, q, vlist, R):
         p = mx * v
         dsigdq = ( 2 * np.pi * q / (p**2) ) * dsigdomega
         
-        ## Cut off unphysical large momentum transfer
-        # dsigdq[q > 2 * p] = 0
+        # Cut off unphysical large momentum transfer
+        # Elastic scattering only
+        dsigdq[q > 2 * p] = 0
 
         ss[i] = dsigdq
     
@@ -35,7 +35,7 @@ def calc_event_rate_born(R_um, mphi, mx_gev, alpha_t):
     alpha = alpha_t * N_T 
     
     nq = 20000
-    pmax = np.min([10 * vesc * mx, 10 * alpha / (R * vmin)])
+    pmax = np.max([np.min([10 * vesc * mx, 10 * alpha / (R * vmin)]), 1e4])
     q_lin  = np.linspace(1, 2*pmax*1.1, nq)
     
     nvels = 2000
@@ -47,7 +47,7 @@ def calc_event_rate_born(R_um, mphi, mx_gev, alpha_t):
     return q_lin/1e9, drdq
 
 if __name__ == "__main__":
-    npts = 40    # Number of pts in parameter space
+    npts = 20    # Number of pts in parameter space
 
     outdir = r"/home/yt388/palmer_scratch/data/born"
     if(not os.path.isdir(outdir)):
@@ -55,14 +55,16 @@ if __name__ == "__main__":
 
     sphere_type = 'nanosphere'
     R_um = 0.0075   # nanospheres; 7.5 nm
-    mx_gev = np.logspace(-6, 1, npts)
-    alpha_t = np.logspace(-10, -4, npts)
+    # mx_gev = np.logspace(-6, 1, npts)
+    # alpha_t = np.logspace(-10, -4, npts)
+    mx_gev = np.logspace(-7, 0, npts)
+    alpha_t = np.logspace(-15, -8, npts)
 
-    mphi = [100]      # eV
+    mphi = [1e4, 1e5]      # eV
 
     for m_phi in mphi:
         for i, mx in enumerate(mx_gev):
             for j, alpha in enumerate(alpha_t):
                 qq, drdq = calc_event_rate_born(R_um, m_phi, mx, alpha)
-                np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{mx:.5e}_{alpha:.5e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq)
+                np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{mx:.5e}_{alpha:.5e}_{m_phi:.0e}.npz', mx_gev=mx, alpha_t=alpha, q=qq, drdq=drdq)
 
