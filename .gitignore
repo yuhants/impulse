@@ -16,5 +16,5 @@ limits/*.npz
 *.pptx
 data/mphi_1e-04/*.npz
 data/massless_mediator/*.npz
-yuhan/data/*
+yuhan/data/*/*
 data/*
