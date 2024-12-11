@@ -1,21 +1,24 @@
 import sys, os
 import numpy as np
 
-from scipy.optimize import minimize_scalar
 from scipy.integrate import quad
-import scipy.signal as sig
 from scipy.special import erf
 from scipy.interpolate import CubicSpline
 
+import h5py
+
 from multiprocessing import Pool
 
-## General Prameters
+## General Parameters
 hbarc = 0.2      # eV um
 rho_T = 2.0e3    # Sphere density, kg/m^3
 mAMU  = 1.66e-27 # Neutron mass, kg
 
-res   = 170e6    # detector resolution in eV
-q_thr = 0.05e9   # momentum threshold, eV
+# nvels = 2000   # Number of velocities to include in integration
+nvels = 200
+nb    = 2000     # Number of impact parameters to calculate
+nq    = 20000    # Number of momentum transfer to sample
+qmin  = 10000    # Lowest momenturm transfer considered
 
 ## DM parameters
 rhoDM = 0.3e9    # dark matter mass density, eV/cm^3
@@ -28,6 +31,8 @@ ve    = 8.172e-4 # ve parameter from Zurek group paper
 def f_halo(v):
     """
     DM velocity distribution in the Earth frame from Zurek group paper
+    https://journals.aps.org/prd/pdf/10.1103/PhysRevD.100.035025
+    note there is a typo in the sign of the exponential in the above paper
     
     :param v: input velocity (array-like)
     :return: velocity distribtuion (array-like)
@@ -47,15 +52,6 @@ def f_halo(v):
     f[g2] = f2[g2]
 
     return f * np.pi * v * v0**2 / (N0 * ve)
-
-def f_halo_dan(v):
-    """
-    I think this is the standard halo model in the Galaxy frame 
-    i.e. not in the Earth frame, but need to double check.
-    See Eq. (2) of https://link.aps.org/doi/10.1103/PhysRevD.42.3572
-    """
-    N0 = np.pi**1.5 * v0**3 * ( erf(vesc/v0) - 2/np.sqrt(np.pi) * (vesc/v0) * np.exp(-(vesc/v0)**2))
-    return 4 * np.pi * v**2 * np.exp(-v**2 / v0**2) / N0
 
 def vtot(u, m_phi, R, alpha, point_charge=False):
     mR = m_phi * R
@@ -152,20 +148,21 @@ def integrand(rho, umax, E, b, m_phi, R, alpha, point_charge):
         return 1 / np.sqrt(both)
 
 def b_theta(M_X, m_phi, R, alpha, v, point_charge):
-    p = M_X * v            # DM initial momentum (eV)
-    E = 1./2 * M_X * v**2  # Initial kinetic energy of incoming particle
+    p = M_X * v           # DM initial momentum (eV)
+    E = 0.5 * M_X * v**2  # Initial kinetic energy of incoming particle
 
     # Make a list of impact parameters
     # Impact factor `b` (eV^-1)
     # Might need to adjust the range for different calculations
-    nb = 2000
     if(m_phi > 0):
-        b_um = np.logspace(-5, 5, nb)
+        b_um = np.logspace(-5, 3, nb)
     else:
         b_um = np.logspace(-5, 5, nb)
     b = b_um / hbarc
     
     umax     = max_u_numerical(E, b, m_phi, R, alpha, point_charge)
+
+    # Perform numerical integration
     integral = np.empty_like(b)
     for i, _b in enumerate(b):
         integral[i] = quad(integrand, 0, 1, args=(umax[i], E, _b, m_phi, R, alpha, point_charge))[0]
@@ -198,7 +195,7 @@ def db_dq(q, b):
     
     return q_sorted, b_sorted, dbdq
 
-def dsig_dq(p, pmax, b, theta, q_lin):
+def dsig_dq(p, b, theta, q_lin):
     # Take care of nan in theta from numerical integration
     not_nan = np.logical_not(np.isnan(theta))
     b = b[not_nan]
@@ -252,31 +249,46 @@ def dsig_dq(p, pmax, b, theta, q_lin):
     return dsigdq_tot
 
 def dR_dq(mx, q, dsdq, vlist):
+    # Conversion factor for dsig/dq
+    # natural units -> um^2/keV, c [cm/s], um^2/cm^2
+    # Note that this is later integrated over `rhoDM / mx`
+    # which is in units cm^-3
+    # The factor of c accounts for the velocity integration
+    # in cm/s
+    conv_fac = hbarc**2 * 1e3 * 3e10 * 1e-8
+
     # Integrate over DM velocities to get dR/dq
     int_vec = rhoDM / mx * vlist * f_halo(vlist)
 
-    drdq = np.zeros_like(q)
+    total_xsec = np.zeros_like(q)
     for i in range(q.size):
-        drdq[i] = np.trapz( int_vec * dsdq.T[i], x=vlist )
+        total_xsec[i] = np.trapz( int_vec * dsdq.T[i], x=vlist )
     
     # natural units -> um^2/GeV, c [cm/s], um^2/cm^2, s/hr    
-    conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600
-    
+    # conv_fac = hbarc**2 * 1e9 * 3e10 * 1e-8 * 3600
+
     # GeV; Counts/hour/GeV
-    return q/1e9, drdq * conv_fac
+    # return q/1e9, drdq * conv_fac
+
+    # keV; Differential count (Hz/keV/c)
+    return q/1e3, total_xsec * conv_fac
 
 def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
+    outdir = rf'/Users/yuhan/work/impulse/yuhan/data/mphi_{m_phi:.0e}_v200_newq'
+    # outdir = f'/home/yt388/palmer_scratch/data/mphi_{m_phi:.0e}'
+    if(not os.path.isdir(outdir)):
+        os.mkdir(outdir)
+
     if R_um < 1:
         sphere_type = 'nanosphere'
     else:
         sphere_type = 'microsphere'
 
     R   = R_um / hbarc  # Radius in natural units, eV^-1
-    N_T = 0.5 * ( 4/3 * np.pi * (R_um*1e-6)**3) * rho_T/mAMU # Number of neutrons
+    N_T = 0.5 * ( 4/3 * np.pi * (R_um*1e-6)**3) * rho_T / mAMU # Number of neutrons
     
     alpha_n = alpha_n_in      # Dimensionless single neutron-nugget coupling
     alpha   = alpha_n * N_T   # Total coupling
-    mR      = m_phi * R       # (= R/lambda), a useful length scale; now defined in `vtot()`
 
     # `m_phi` is already in eV
     M_X   = M_X_in * 1e9  # Dark matter nugget mass, eV (assumes mass in GeV given on command line)
@@ -286,63 +298,60 @@ def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     # calculate b-theta for each DM velocity
     # and the corresponding cross section dsig/dq
     point_charge = False
-    nvels = 2000      # Number of velocities to include in integration
     vlist = np.linspace(vmin, vesc, nvels)
     
-    # Maximum momentum in the scattering
-    # TODO: need more testing
+    # Maximum momentum to consider in the scattering
     # This would affect how we sample and interpolate cross section
     # Make sure to over sample `q` enough so accurate down to 
     # ~ MeV for microspheres and ~ keV for nanospheres
     # In small angle scattering q ~ 2 alpha / (b v)
-    pmax = np.min([10 * vesc * M_X, 10 * alpha / (R * vmin)])
 
-    nq     = 20000
     # Modified 20230723 to accomodate low momentum threshold cases
-    # TODO: test
-    q_lin  = np.linspace(1, 2*pmax*1.1, nq)
+    # pmax = np.min([2.5 * vesc * M_X, 10 * alpha / (R * vmin)])
+
+    pmax = np.max((2.5 * vesc * M_X, 10e6))
+    q_lin  = np.linspace(qmin, pmax, nq)
     dsdq   = np.empty(shape=(nvels, nq))
 
-    ## If not using pool
-    #nb = 2000
-    #bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
-    
+    ## If using pool
     params = list(np.vstack( (np.full(nvels, M_X), np.full(nvels, m_phi), np.full(nvels, R),
                               np.full(nvels, alpha), vlist, np.full(nvels, point_charge) )).T)
-    # pool   = Pool(1) 
-    pool   = Pool(32)  # This is the number of CPU we want to allocate for each task
-                       # i.e. #SBATCH --cpus-per-task=32
+    pool   = Pool(4)
+    # pool   = Pool(32)  # This is the number of CPU we want to allocate for each task
+    #                    # i.e. #SBATCH --cpus-per-task=32
     b_theta_pooled = pool.starmap(b_theta, params)
 
     ## For debugging purposes
     # _transposed = list(zip(*b_theta_pooled))
     # bb, tt = _transposed[1], _transposed[2]
 
+    ## If not using pool
+    # nb = 2000
+    # bb, tt = np.empty(shape=(vlist.size, nb)), np.empty(shape=(vlist.size, nb))
+
     for idx, v in enumerate(vlist):
-        ## If not using pool
-        #p, bb[idx], tt[idx] = b_theta(M_X, m_phi, alpha, v)
-        
+        # print(f'Idx: {idx}, Velocity: {v:.2e}')
+
+        # If not using pool
+        # p, b, theta = b_theta(M_X, m_phi, R, alpha, v, point_charge)
+        # bb[idx], tt[idx] = b, theta
+
         # Use multiprocessing to accelerate calculation
-        print(f'Idx: {idx}, Velocity: {v}')
         p         = b_theta_pooled[idx][0]
         b         = b_theta_pooled[idx][1]
         theta     = b_theta_pooled[idx][2]
-        dsdq[idx] = dsig_dq(p, pmax, b, theta, q_lin)
+        dsdq[idx] = dsig_dq(p, b, theta, q_lin)
 
-    q_gev, drdq = dR_dq(M_X, q_lin, dsdq, vlist)
-
-    # outdir = r"C:\Users\yuhan\work\microspheres\code\impulse\data\mphi_%.0e"%m_phi
-    outdir = f'/home/yt388/palmer_scratch/data/mphi_{m_phi:.0e}'
-    if(not os.path.isdir(outdir)):
-        os.mkdir(outdir)
+    # GeV; Counts/s/kev
+    q_kev, drdq = dR_dq(M_X, q_lin, dsdq, vlist)
     
-    ## For debugging purposes    
+    ## For debugging purposes
     # np.savez(outdir + "/b_theta_alpha_%.5e_MX_%.5e.npz"%(alpha_n, M_X/1e9), b=np.asarray(bb), theta=np.asarray(tt) , v=vlist)   
     ## eV; dsigdqdv 
     # np.savez(outdir + f'/dsdqdv_{sphere_type}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_lin, dsdqdv=dsdq, v=vlist) 
 
-    # GeV; Counts/hour/GeV
-    np.savez(outdir + f'/drdq_{sphere_type}_{R_um:.2e}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz', mx_gev=M_X_in, alpha_n=alpha_n_in, q=q_gev, drdq=drdq)
+    file_name = f'/drdq_{sphere_type}_{R_um:.2e}_{M_X_in:.5e}_{alpha_n:.5e}_{m_phi:.0e}.npz'
+    np.savez(outdir+file_name, mx_gev=M_X_in, alpha_n=alpha_n_in, q_kev=q_kev, drdq_hz_kev=drdq)
 
 if __name__ == "__main__":
     R_um       = float(sys.argv[1])  # Sphere radius in um

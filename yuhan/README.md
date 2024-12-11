@@ -24,5 +24,5 @@ The workflow of the code goes like this
 
 3. Turn the alpha_n limits into limits on DM-single nucleon cross section assuming some parametrization
    This is done in the Jupyter notebooks
-    - set_limits_light_dm.ipynb
-    - set_limits_composite_dm.ipynb
+    - ./set_limits_light_dm.ipynb
+    - ./set_limits_composite_dm.ipynb
