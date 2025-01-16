@@ -1,12 +1,12 @@
 import os
 import numpy as np
 
-R_um       = 0.0075 
-mx_list    = np.logspace(-6, 1, 40)
+R_um       = 0.083 
+mx_list    = np.logspace(-2, 5, 40)
 alpha_list = np.logspace(-10, -4, 40)
-mphi_list  = [1000, 100, 10]
+mphi_list  = [1]
 
-job_file = open("job_list_15nm.txt", "wt")
+job_file = open("job_list_166nm.txt", "wt")
 
 for mx in mx_list:
     for alpha in alpha_list:
@@ -18,7 +18,7 @@ for mx in mx_list:
                  print("Skipping: ", outfile)
                  continue
 
-            job_str = f'module load miniconda; conda activate microsphere; python rate_massive_mediator.py {R_um} {mx} {alpha} {mphi}\n'
+            job_str = f'module load miniconda; conda activate microsphere; python ../rate_massive_mediator.py {R_um} {mx} {alpha} {mphi}\n'
             job_file.write( job_str )
 
 job_file.close()
