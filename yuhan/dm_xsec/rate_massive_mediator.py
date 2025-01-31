@@ -273,7 +273,7 @@ def dR_dq(mx, q, dsdq, vlist):
 
 def run_nugget_calc(R_um, M_X_in, alpha_n_in, m_phi):
     # outdir = rf'/Users/yuhan/work/impulse/yuhan/data/mphi_{m_phi:.0e}_v200_newq'
-    outdir = f'/home/yt388/palmer_scratch/data/mphi_{m_phi:.0e}'
+    outdir = f'/home/yt388/palmer_scratch/data/dm_rate/mphi_{m_phi:.0e}'
     if(not os.path.isdir(outdir)):
         os.mkdir(outdir)
 
